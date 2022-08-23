@@ -2,6 +2,9 @@ package tasklist
 
 import kotlinx.datetime.*
 import kotlin.system.exitProcess
+import com.squareup.moshi.*
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import java.io.File
 
 const val INPUT_TASKS_MESSAGE = "Input a new task (enter a blank line to end):"
 const val WELCOMING_MESSAGE = "Input an action (add, print, edit, delete, end):"
@@ -10,6 +13,8 @@ const val TOP_OF_TABLE = "+----+------------+-------+---+---+-------------------
         "+----+------------+-------+---+---+--------------------------------------------+"
 const val NEW_LINE = "|    |            |       |   |   |"
 const val BREAK_LINE = "+----+------------+-------+---+---+--------------------------------------------+"
+
+val jsonFile = File("tasklist.json")
 
 class TaskList {
 
@@ -23,8 +28,30 @@ class TaskList {
         var listOfTasks: MutableList<String> = mutableListOf()
     )
 
+    fun saveToJson() {
+        val moshi = Moshi.Builder()
+            .add(KotlinJsonAdapterFactory())
+            .build()
+        val type = Types.newParameterizedType(MutableList::class.java, Tasks::class.java)
+        val tasksAdapter = moshi.adapter<MutableList<Tasks>>(type)
+        val jsonContent = tasksAdapter.toJson(taskList)
+        jsonFile.writeText(jsonContent)
+    }
 
-    fun getOverdue(task: Tasks){
+    fun readFromJson() {
+        if (jsonFile.exists()) {
+            val content = jsonFile.readText()?.trimIndent()
+            val moshi = Moshi.Builder()
+                .add(KotlinJsonAdapterFactory())
+                .build()
+            val type = Types.newParameterizedType(MutableList::class.java, Tasks::class.java)
+            val tasksAdapter = moshi.adapter<MutableList<Tasks>>(type)
+            tasksAdapter.fromJson(jsonFile.readText())?.let(taskList::addAll)
+        }
+    }
+
+
+    fun getOverdue(task: Tasks) {
         val taskDate = task.date.toLocalDate()
         val currentDate = Clock.System.now().toLocalDateTime(TimeZone.of("UTC+0")).date
         val numberOfDays = currentDate.daysUntil(taskDate)
@@ -102,7 +129,7 @@ class TaskList {
         }
     }
 
-    fun deleteTask(){
+    fun deleteTask() {
         printTasks()
         if (taskList.isNotEmpty()) {
             while (true) {
@@ -123,7 +150,7 @@ class TaskList {
         }
     }
 
-    fun editTask(){
+    fun editTask() {
         printTasks()
         var flag = true
         if (taskList.isNotEmpty()) {
@@ -178,6 +205,7 @@ class TaskList {
     }
 
     fun showMenu() {
+        readFromJson()
         while (true) {
             println(WELCOMING_MESSAGE)
             when (readln().lowercase()) {
@@ -187,6 +215,7 @@ class TaskList {
                 "edit" -> editTask()
                 "end" -> {
                     println("Tasklist exiting!")
+                    saveToJson()
                     exitProcess(0)
                 }
                 else -> println("The input action is invalid")
@@ -199,7 +228,7 @@ class TaskList {
             println(TOP_OF_TABLE)
             for (i in 1..taskList.size) {
                 var spaces = if (i > 9) " " else "  "
-                var priority = when (taskList[i-1].priority){
+                var priority = when (taskList[i - 1].priority) {
                     "C" -> "\u001B[101m \u001B[0m"
                     "H" -> "\u001B[103m \u001B[0m"
                     "N" -> "\u001B[102m \u001B[0m"
@@ -218,7 +247,7 @@ class TaskList {
                     for (element in chunkedList) {
                         var spaces = " ".repeat(44 - element.length)
                         print("${element}$spaces|\n")
-                        if ((j != taskList[i - 1].listOfTasks.size - 1) || (chunkedList.indexOf(element) != chunkedList.lastIndex)){
+                        if ((j != taskList[i - 1].listOfTasks.size - 1) || (chunkedList.indexOf(element) != chunkedList.lastIndex)) {
                             print(NEW_LINE)
                         }
                     }
